@@ -58,10 +58,11 @@ type MainView struct {
 
 	lastFocusTime time.Time
 
-	matrix ifc.MatrixContainer
-	gmx    ifc.Gomuks
-	config *config.Config
-	parent *GomuksUI
+	matrix 		  ifc.MatrixContainer
+	gmx    		  ifc.Gomuks
+	config 		  *config.Config
+	parent  	  *GomuksUI
+	callbacks	  map[string]func()
 }
 
 func (ui *GomuksUI) NewMainView() mauview.Component {
@@ -74,7 +75,9 @@ func (ui *GomuksUI) NewMainView() mauview.Component {
 		gmx:    ui.gmx,
 		config: ui.gmx.Config(),
 		parent: ui,
+		callbacks: make(map[string]func()),
 	}
+
 	mainView.roomList = NewRoomList(mainView)
 	mainView.cmdProcessor = NewCommandProcessor(mainView)
 
@@ -83,6 +86,13 @@ func (ui *GomuksUI) NewMainView() mauview.Component {
 		AddFixedComponent(widget.NewBorder(), 1).
 		AddProportionalComponent(mainView.roomView, 1)
 	mainView.BumpFocus(nil)
+
+	mainView.callbacks = map[string]func() {
+		"previous_room": mainView.PreviousRoomCallback,
+		"next_room": mainView.NextRoomCallback,
+		"goto_room": mainView.SearchRoomCallback,
+		"active_room": mainView.NextWithActivityCallback,
+	}
 
 	ui.mainView = mainView
 
@@ -174,6 +184,28 @@ func (view *MainView) NextRoomCallback() {
 	view.SwitchRoom(view.roomList.Next())
 }
 
+func (view *MainView) SearchRoomCallback() {
+	view.ShowModal(NewFuzzySearchModal(view, 42, 12))
+}
+
+func (view *MainView) ScrollUpCallback() {
+	msgView := view.currentRoom.MessageView()
+	msgView.AddScrollOffset(msgView.TotalHeight())
+}
+
+func (view *MainView) ScrollDownCallback() {
+	msgView := view.currentRoom.MessageView()
+	msgView.AddScrollOffset(-msgView.TotalHeight())
+}
+
+func (view *MainView) NextWithActivityCallback() {
+	view.SwitchRoom(view.roomList.NextWithActivity())
+}
+
+func (view *MainView) ShowBareCallback() {
+	view.ShowBare(view.currentRoom)
+}
+
 func (view *MainView) OnKeyEvent(event mauview.KeyEvent) bool {
 	view.BumpFocus(view.currentRoom)
 
@@ -181,21 +213,19 @@ func (view *MainView) OnKeyEvent(event mauview.KeyEvent) bool {
 		return view.modal.OnKeyEvent(event)
 	}
 
-	key_map := map[string]func() {
-		"Ctrl+P": view.PreviousRoomCallback,
-		"Ctrl+N": view.NextRoomCallback,
-	}
-
 	key_string, _ := cbind.Encode(
 		tcell_v2.ModMask(event.Modifiers()),
 		tcell_v2.Key(event.Key()),
 		event.Rune())
 
-	callback, _ := key_map[key_string]
+	callback_string, _ := view.config.Keybindings.Keybindings[key_string]
 
-	if callback != nil {
-		callback()
-		return true
+	if callback_string != "" {
+		callback, _ := view.callbacks[callback_string]
+		if callback != nil {
+			callback()
+			return true
+		}
 	}
 
 	k := event.Key()
