@@ -92,6 +92,15 @@ func (ui *GomuksUI) NewMainView() mauview.Component {
 		"next_room": mainView.NextRoomCallback,
 		"goto_room": mainView.SearchRoomCallback,
 		"active_room": mainView.NextWithActivityCallback,
+		"word_left": mainView.MoveWordLeftCallback,
+		"word_right": mainView.MoveWordRightCallback,
+		"char_left": mainView.MoveCharLeftCallback,
+		"char_right": mainView.MoveCharRightCallback,
+		"scroll_down": mainView.ScrollDownCallback,
+		"scroll_up": mainView.ScrollUpCallback,
+		"remove_char": mainView.RemoveNextChar,
+		"remove_previous_word": mainView.RemovePreviousWord,
+		// "remove_next_word": mainView.RemoveNextWord,
 	}
 
 	ui.mainView = mainView
@@ -190,12 +199,15 @@ func (view *MainView) SearchRoomCallback() {
 
 func (view *MainView) ScrollUpCallback() {
 	msgView := view.currentRoom.MessageView()
-	msgView.AddScrollOffset(msgView.TotalHeight())
+	if msgView.IsAtTop() {
+		go view.LoadHistory(view.currentRoom.Room.ID)
+	}
+	msgView.AddScrollOffset(+msgView.Height() / 2)
 }
 
 func (view *MainView) ScrollDownCallback() {
 	msgView := view.currentRoom.MessageView()
-	msgView.AddScrollOffset(-msgView.TotalHeight())
+	msgView.AddScrollOffset(-msgView.Height() / 2)
 }
 
 func (view *MainView) NextWithActivityCallback() {
@@ -204,6 +216,46 @@ func (view *MainView) NextWithActivityCallback() {
 
 func (view *MainView) ShowBareCallback() {
 	view.ShowBare(view.currentRoom)
+}
+
+func (view *MainView) MoveWordLeftCallback() {
+	view.currentRoom.input.MoveCursorLeft(true, false)
+}
+
+func (view *MainView) MoveWordRightCallback() {
+	view.currentRoom.input.MoveCursorRight(true, false)
+}
+
+func (view *MainView) MoveCharLeftCallback() {
+	view.currentRoom.input.MoveCursorLeft(false, false)
+}
+
+func (view *MainView) MoveCharRightCallback() {
+	view.currentRoom.input.MoveCursorLeft(false, false)
+}
+
+func (view *MainView) RemoveNextChar() {
+	view.currentRoom.input.RemoveNextCharacter()
+}
+
+func (view *MainView) RemovePreviousChar() {
+	view.currentRoom.input.RemovePreviousCharacter()
+}
+
+// func (view *MainView) RemoveNextWord() {
+// 	field := view.currentRoom.input
+// 	if field.selectionEndW > 0 {
+// 		field.RemoveSelection()
+// 		return
+// 	}
+// 	left := iaSubstringBefore(field.text, field.cursorOffsetW)
+// 	replacement := lastWord.ReplaceAllString(left, "")
+// 	field.text = replacement + field.text[len(left):]
+// 	field.cursorOffsetW = iaStringWidth(replacement)
+// }
+
+func (view *MainView) RemovePreviousWord() {
+	view.currentRoom.input.RemovePreviousWord()
 }
 
 func (view *MainView) OnKeyEvent(event mauview.KeyEvent) bool {
