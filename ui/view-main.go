@@ -22,6 +22,7 @@ import (
 	"os"
 	"sync/atomic"
 	"time"
+	"strings"
 
 	sync "github.com/sasha-s/go-deadlock"
 
@@ -98,9 +99,13 @@ func (ui *GomuksUI) NewMainView() mauview.Component {
 		"char_right": mainView.MoveCharRightCallback,
 		"scroll_down": mainView.ScrollDownCallback,
 		"scroll_up": mainView.ScrollUpCallback,
-		"remove_char": mainView.RemoveNextChar,
-		"remove_previous_word": mainView.RemovePreviousWord,
-		// "remove_next_word": mainView.RemoveNextWord,
+		"remove_char": mainView.RemoveNextCharCallback,
+		"remove_previous_word": mainView.RemovePreviousWordCallback,
+		"remove_next_word": mainView.RemoveNextWordCallback,
+		"move_to_beginning": mainView.MoveToBeginningCallback,
+		"move_to_end": mainView.MoveToEndCallback,
+		"kill_to_beginning": mainView.KillToBeginningCallback,
+		"kill_to_end": mainView.KillToEndCallback,
 	}
 
 	ui.mainView = mainView
@@ -234,28 +239,53 @@ func (view *MainView) MoveCharRightCallback() {
 	view.currentRoom.input.MoveCursorLeft(false, false)
 }
 
-func (view *MainView) RemoveNextChar() {
+func (view *MainView) RemoveNextCharCallback() {
 	view.currentRoom.input.RemoveNextCharacter()
 }
 
-func (view *MainView) RemovePreviousChar() {
+func (view *MainView) RemovePreviousCharCallback() {
 	view.currentRoom.input.RemovePreviousCharacter()
 }
 
-// func (view *MainView) RemoveNextWord() {
-// 	field := view.currentRoom.input
-// 	if field.selectionEndW > 0 {
-// 		field.RemoveSelection()
-// 		return
-// 	}
-// 	left := iaSubstringBefore(field.text, field.cursorOffsetW)
-// 	replacement := lastWord.ReplaceAllString(left, "")
-// 	field.text = replacement + field.text[len(left):]
-// 	field.cursorOffsetW = iaStringWidth(replacement)
-// }
+func (view *MainView) RemoveNextWordCallback() {
+	field := view.currentRoom.input
+	if field.GetSelectedText() != "" {
+		field.RemoveSelection()
+		return
+	}
+	left := field.GetText()[0:field.GetCursorOffset()]
+	right_index := strings.Index(field.GetText()[field.GetCursorOffset(): ], " ")
+	right := field.GetText()[field.GetCursorOffset() + 1 + right_index: ]
+	if right_index == -1 {
+		right = ""
+	}
+	replacement := left + right
+	field.SetText(replacement)
+}
 
-func (view *MainView) RemovePreviousWord() {
+func (view *MainView) RemovePreviousWordCallback() {
 	view.currentRoom.input.RemovePreviousWord()
+}
+
+func (view *MainView) MoveToBeginningCallback() {
+	view.currentRoom.input.SetCursorPos(0, 0)
+}
+
+func (view *MainView) MoveToEndCallback() {
+	view.currentRoom.input.SetCursorPos(999, 999)
+}
+
+func (view *MainView) KillToEndCallback() {
+	field := view.currentRoom.input
+	left := field.GetText()[0:field.GetCursorOffset()]
+	field.SetText(left)
+}
+
+func (view *MainView) KillToBeginningCallback() {
+	field := view.currentRoom.input
+	right := field.GetText()[field.GetCursorOffset():]
+	field.SetText(right)
+	field.SetCursorPos(0, 0)
 }
 
 func (view *MainView) OnKeyEvent(event mauview.KeyEvent) bool {
